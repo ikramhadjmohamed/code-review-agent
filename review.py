@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.static_analysis import run_all, format_for_prompt
-from backend.agent import run_agent
+from backend.tools_agent import run_tool_calling_agent
 
 # ANSI colors
 RED    = "\033[91m"
@@ -107,17 +107,8 @@ def main():
     print(f"\n🔍 Reviewing: {filepath}")
     print("─" * 50)
 
-    print("⚙️  Running static analysis...")
-    static_issues = run_all(filepath)
-    print(f"   → {len(static_issues)} issues found")
-
-    static_text = format_for_prompt(static_issues)
-
-    with open(filepath, "r", encoding="utf-8") as f:
-        code = f.read()
-
-    print("🤖 Running AI agent...")
-    report = run_agent(code, static_text)
+    print("🤖 Running Tool-Calling Agent...")
+    report = run_tool_calling_agent(filepath)
 
     print_report(report, filepath)
 
