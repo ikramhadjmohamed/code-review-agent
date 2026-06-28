@@ -236,7 +236,8 @@ def _fix_severities(report: dict) -> dict:
     HIGH_KEYWORDS = ["hardcoded password", "hardcoded secret", "hardcoded credential", 
                      "hardcoded api", "pickle", "unsafe deserialization", "path traversal"]
     MEDIUM_KEYWORDS = ["bare except", "file not closed", "division by zero", 
-                       "no exception type", "resource leak", "file descriptor"]
+                   "no exception type", "resource leak", "file descriptor",
+                   "try-except-pass", "except pass", "try, except, pass"]
     
     for issue in report.get("issues", []):
         title = issue.get("title", "").lower()
