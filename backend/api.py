@@ -1,8 +1,9 @@
 import os
 import sys
 import tempfile
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
 
 
@@ -41,7 +43,6 @@ async def review_code(request: CodeRequest):
     if not request.code.strip():
         raise HTTPException(status_code=400, detail="Code cannot be empty")
 
-    # Write to temp file so tools can run on it
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False, encoding="utf-8"
     ) as tmp:
@@ -64,8 +65,3 @@ async def review_pr(request: PRRequest):
     report = run_tool_calling_agent(request.pr_url)
     report["meta"] = {"pr_url": request.pr_url}
     return report
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("backend.api:app", host="0.0.0.0", port=8000, reload=True)

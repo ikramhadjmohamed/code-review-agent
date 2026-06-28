@@ -199,6 +199,12 @@ Your workflow:
 2. If given a GitHub PR URL → use fetch_github_pr to get the diff
 3. Analyze everything and produce a final structured report
 
+SEVERITY RULES — follow these strictly:
+- "critical": SQL injection, remote code execution, authentication bypass, hardcoded secrets/passwords/API keys
+- "high": hardcoded credentials, unsafe deserialization, path traversal, missing input validation on security-sensitive inputs, division by zero crash
+- "medium": file not closed, bare except, unused variable causing logic errors, missing error handling
+- "low": style issues, unused imports, missing docstrings, naming conventions, missing newline
+
 Your final response MUST be a JSON object only, no markdown:
 {
   "issues": [
@@ -223,6 +229,49 @@ Your final response MUST be a JSON object only, no markdown:
   }
 }"""
 
+def _fix_severities(report: dict) -> dict:
+    """Force correct severities based on keywords — LLM often underestimates."""
+    
+    CRITICAL_KEYWORDS = ["sql injection", "remote code", "authentication bypass"]
+    HIGH_KEYWORDS = ["hardcoded password", "hardcoded secret", "hardcoded credential", 
+                     "hardcoded api", "pickle", "unsafe deserialization", "path traversal"]
+    MEDIUM_KEYWORDS = ["bare except", "file not closed", "division by zero", 
+                       "no exception type", "resource leak", "file descriptor"]
+    
+    for issue in report.get("issues", []):
+        title = issue.get("title", "").lower()
+        explanation = issue.get("explanation", "").lower()
+        text = title + " " + explanation
+        
+        if any(k in text for k in CRITICAL_KEYWORDS):
+            issue["severity"] = "critical"
+        elif any(k in text for k in HIGH_KEYWORDS):
+            issue["severity"] = "high"
+        elif any(k in text for k in MEDIUM_KEYWORDS):
+            issue["severity"] = "medium"
+        # sinon → garde la sévérité que le LLM a donnée
+    
+    # Recount
+    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for issue in report.get("issues", []):
+        sev = issue.get("severity", "low")
+        if sev in counts:
+            counts[sev] += 1
+    
+    total = sum(counts.values())
+    if counts["critical"] > 0:
+        quality = "poor"
+    elif counts["high"] > 0:
+        quality = "fair"
+    elif counts["medium"] > 2:
+        quality = "fair"
+    elif counts["medium"] > 0:
+        quality = "good"
+    else:
+        quality = "excellent"
+    
+    report["summary"].update({**counts, "total": total, "overall_quality": quality})
+    return report
 
 def run_tool_calling_agent(input_path: str) -> dict:
     """
@@ -290,11 +339,13 @@ def run_tool_calling_agent(input_path: str) -> dict:
             import re
             clean = re.sub(r"```(?:json)?", "", content).strip().rstrip("```").strip()
             try:
-                return json.loads(clean)
+                result = json.loads(clean)
+                return _fix_severities(result)
             except Exception:
                 match = re.search(r'(\{[\s\S]*\})', clean)
                 if match:
                     return json.loads(match.group(1))
+                    return _fix_severities(result)
                 return {"issues": [], "summary": {"overall_quality": "unknown", "total": 0}}
 
     return {"issues": [], "summary": {"overall_quality": "unknown", "total": 0}}
